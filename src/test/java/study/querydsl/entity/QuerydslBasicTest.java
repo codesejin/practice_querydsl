@@ -2,6 +2,7 @@ package study.querydsl.entity;
 
 
 import com.querydsl.core.QueryResults;
+import com.querydsl.core.Tuple;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,6 +15,7 @@ import javax.transaction.Transactional;
 import java.util.List;
 
 import static study.querydsl.entity.QMember.*;
+import static study.querydsl.entity.QTeam.team;
 
 @SpringBootTest
 @Transactional
@@ -65,7 +67,7 @@ public class QuerydslBasicTest {
 //        Member findMember = em.createQuery("select m from Member m where m.username = :username", Member.class)
         String qlString =
                 "select m from Member m " +
-                "where m.username = :username";
+                        "where m.username = :username";
 
         Member findMember = em.createQuery(qlString, Member.class)
                 .setParameter("username", "member1")
@@ -75,7 +77,7 @@ public class QuerydslBasicTest {
     }
 
     @Test
-    public void startQuerydsl(){
+    public void startQuerydsl() {
         //QMember m = QMember.member;
 
         Member findMember = queryFactory
@@ -99,6 +101,7 @@ public class QuerydslBasicTest {
 
         Assertions.assertThat(findMember.getUsername()).isEqualTo("member1");
     }
+
     @Test
     public void searchAndParam() {
         Member findMember = queryFactory
@@ -114,7 +117,7 @@ public class QuerydslBasicTest {
     }
 
     @Test
-    public void resultFetch(){
+    public void resultFetch() {
 //        List<Member> fetch = queryFactory
 //                .selectFrom(member)
 //                .fetch();
@@ -178,6 +181,7 @@ public class QuerydslBasicTest {
 
         Assertions.assertThat(result.size()).isEqualTo(2);
     }
+
     @Test
     public void paging2() {
         QueryResults<Member> queryResults = queryFactory
@@ -194,4 +198,51 @@ public class QuerydslBasicTest {
 
     }
 
+    @Test
+    public void aggregation() {
+        // 튜플을 여러개가 있을때 꺼내오는 것
+        // 튜플로 사용하는 이유 :  데이터타입이 여러개가 들어올 때 사용, 하지만 실무에서는 튜플 많이 사용 안하고 DTO사용
+        List<Tuple> result = queryFactory
+                .select(
+                        member.count(),
+                        member.age.sum(),
+                        member.age.avg(),
+                        member.age.max(),
+                        member.age.min()
+                )
+                .from(member)
+                .fetch();
+
+        Tuple tuple = result.get(0);
+        Assertions.assertThat(tuple.get(member.count())).isEqualTo(4);
+        Assertions.assertThat(tuple.get(member.age.sum())).isEqualTo(100);
+        Assertions.assertThat(tuple.get(member.age.avg())).isEqualTo(25);
+        Assertions.assertThat(tuple.get(member.age.max())).isEqualTo(40);
+        Assertions.assertThat(tuple.get(member.age.min())).isEqualTo(10);
+    }
+
+    /**
+     * 팀의 이름과 각 팀의 평균 연령을 구해라
+     * @throws Exception
+     */
+    @Test
+    public void group() throws Exception {
+
+        List<Tuple> result = queryFactory
+                .select(team.name, member.age.avg())
+                .from(member)
+                .join(member.team, team) // 내부조인
+                .groupBy(team.name)
+                .fetch();
+
+        Tuple teamA = result.get(0);
+        Tuple teamB = result.get(1);
+
+        Assertions.assertThat(teamA.get(team.name)).isEqualTo("teamA");
+        Assertions.assertThat(teamA.get(member.age.avg())).isEqualTo(15); // ( 10 + 20 ) / 2
+        Assertions.assertThat(teamB.get(team.name)).isEqualTo("teamB");
+        Assertions.assertThat(teamB.get(member.age.avg())).isEqualTo(35); // ( 30 + 40 ) / 2
+
+
+    }
 }
