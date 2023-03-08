@@ -223,6 +223,7 @@ public class QuerydslBasicTest {
 
     /**
      * 팀의 이름과 각 팀의 평균 연령을 구해라
+     *
      * @throws Exception
      */
     @Test
@@ -246,6 +247,7 @@ public class QuerydslBasicTest {
 
     /**
      * 팀 A에 소속된 모든 회원
+     *
      * @throws Exception
      */
     @Test
@@ -263,8 +265,9 @@ public class QuerydslBasicTest {
 
     /**
      * 세타 조인
-     * 회원의 이름이 팀 이름과 같은 히원 조회 ( 연관관계 없는 조인을 해보려고 함 ) 
-     * left outer join이나 right outer join 과 같은 외부 조인 불가능 -> hibernate 최신버저 들어가면서 조인 ON을 사용하면 외부 조인 가능
+     * 회원의 이름이 팀 이름과 같은 히원 조회 ( 연관관계 없는 조인을 해보려고 함 )
+     * left outer join 이나 right outer join 과 같은 외부 조인 불가능 -> hibernate 최신버저 들어가면서 조인 ON을 사용하면 외부 조인 가능
+     *
      * @throws Exception
      */
     @Test
@@ -282,5 +285,59 @@ public class QuerydslBasicTest {
         Assertions.assertThat(result)
                 .extracting("username")
                 .containsExactly("teamA", "teamB");
+    }
+
+    /**
+     * 예) 회원과 팀을 조인하면서, 팀 이름이 teamA인 팀만 조인, 회원은 모두 조회
+     * JPQL : select m, t from Member m left join m.team t on t.name = 'teamA'
+     *
+     * @throws Exception
+     */
+    @Test
+    public void join_on_filtering() throws Exception {
+
+        // select 가 여러가지 타입이라 튜플로 나옴
+        List<Tuple> result = queryFactory
+                .select(member, team)
+                .from(member)
+                .leftJoin(member.team, team)
+                    .on(team.name.eq("teamA"))
+                //.where(team.name.eq("teamA")) 이너 조인일 경우 이렇게 where절 하나 ON절 하나 똑같음
+                .fetch();
+
+        for (Tuple tuple : result) {
+            System.out.println("tuple = " + tuple);
+        }
+        /*
+            출력값 : left join 이라 member를 다 가져오는데, teamA와 동일하다는 ON절 조건을 해서 나머지 밑 2개나는 NULL
+            // left join이 아닌 그냥 join 으로 할 경우, 내부 조인이라서  2개만 가져옴
+            tuple = [Member{id=3, username='member1', age=10}, study.querydsl.entity.Team@1a53ac0c]
+            tuple = [Member{id=4, username='member2', age=20}, study.querydsl.entity.Team@1a53ac0c]
+            tuple = [Member{id=5, username='member3', age=30}, null]
+            tuple = [Member{id=6, username='member4', age=40}, null]
+         */
+
+    }
+
+    /**
+     * 연관관계 없는 엔티티 외부조인
+     * 회원의 이름이 팀 이름과 같은 대상 외부 조인
+     * @throws Exception
+     */
+    @Test
+    public void join_on_no_relation() throws Exception {
+        em.persist(new Member("teamA"));
+        em.persist(new Member("teamB"));
+        em.persist(new Member("teamC"));
+
+        List<Tuple> result = queryFactory
+                .select(member, team)
+                .from(member) // 멤버랑 팀 테이블 전부 다 조인
+                .leftJoin(team).on(member.username.eq(team.name))
+                .fetch();
+
+        for (Tuple tuple : result) {
+            System.out.println("tuple = " + tuple);
+        }
     }
 }
