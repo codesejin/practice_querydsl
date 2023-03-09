@@ -918,6 +918,47 @@ public class QuerydslBasicTest {
                 .where(member.age.gt(18))
                 .execute();
     }
+
+    @Test
+    public void sqlFunction() throws Exception {
+
+        /**
+         * function('replace', {0}, {1}, {2}) -> Replace함수를 사용하여 문자열을 치환하는 함수를 나타내는 문자열 탬플릿
+         * {0}, {1}, {2 는 각각 함수의 첫번째, 두번째, 세번째 파라미터를 나타내며 쉽게 말해 문자열 템플릿 ㅏㄴ에 들어갈 파라미터의 위치를 표시하는 기호이다
+         * Expressions.stringTemplate() 메소드를 사용하여 문자열 템플릿을 만들고 있습니다. 첫 번째 파라미터로 "function('replace', {0}, {1}, {2})" 문자열 템플릿을 전달하고, 두 번째 파라미터부터는 치환할 값을 전달합니다.
+         * 즉, member.username 값을 {0} 자리에, "member" 값을 {1} 자리에, "M" 값을 {2} 자리에 삽입하여 문자열 템플릿을 완성합니다. 이렇게 완성된 문자열 템플릿은 select() 메소드에서 사용되어 replace 함수를 적용한 결과를 조회하게 됩니다.
+         * 따라서, 위 코드는 replace 함수를 사용하여 member 문자열을 M 문자열로 치환한 결과를 조회하는 코드입니다.
+         *
+         * 이처럼 sqlFunction을 쓸 수 있는데, H2 Database를 쓰고 있으니까, H2Dialect에 Function이 등록되어있어야 한다
+         * 만일 임의로 DB에서 펑션을 만들ㅇ고 싶으면 H2Dialect를 상속받은걸 만들어서, 그걸 설정(yml, properties)에 넣어서 사용해야 한다.
+         */
+        List<String> result = queryFactory
+                .select(
+                        Expressions.stringTemplate(
+                                "function('replace', {0}, {1}, {2})",
+                                member.username, "member", "M"))
+                .from(member)
+                .fetch();
+
+        for (String s : result) {
+            System.out.println("s = " + s);
+        }
+    }
+
+    @Test
+    public void sqlFunction2() throws Exception {
+        List<String> result = queryFactory
+                .select(member.username)
+                .from(member)
+//                .where(member.username.eq(
+//                        Expressions.stringTemplate("function('lower', {0})", member.username)))
+                .where(member.username.eq(member.username.lower())) // 똑같은 기능. 기본적으로 일반적인 DB에서 제공하는 난시 표준에 있는건 다 제공이 된다
+                .fetch();
+
+        for (String s : result) {
+            System.out.println("s = " + s);
+        }
+    }
 }
 
 
