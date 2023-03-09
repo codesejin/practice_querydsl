@@ -3,6 +3,8 @@ package study.querydsl.entity;
 
 import com.querydsl.core.QueryResults;
 import com.querydsl.core.Tuple;
+import com.querydsl.core.types.ExpressionUtils;
+import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.CaseBuilder;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.JPAExpressions;
@@ -12,6 +14,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import study.querydsl.dto.MemberDto;
+import study.querydsl.dto.UserDto;
 
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
@@ -576,7 +580,7 @@ public class QuerydslBasicTest {
             System.out.println("s = " + s);
         }
     }
-    
+
     @Test
     public void tupleProjection() throws Exception {
 
@@ -587,7 +591,7 @@ public class QuerydslBasicTest {
          * JDBC같은거 쓸 때는 걔네가 반환해주는 ResultSet 이런거를 Repository 나 DAO 계층 안에서 쓰도록 하고
          * 나머지 계층에서는 그런거에 대한 의존이 없게 설계하는게 좋은 설계이다
          * 그래야 나중에 하부 기술을 querydsl에서 다른 기술로 바꾸더라도 앞단인 CONTROLLER 나 Service를 바꿀 필요가 없다
-         * 결론은 튜플을 바깥으로 던질때는 DTO로 바꿔서 반환해라
+         * 결론은 튜플 바깥으로 던질때는 DTO로 바꿔서 반환해라
          */
 
         List<Tuple> result = queryFactory
@@ -599,6 +603,132 @@ public class QuerydslBasicTest {
             Integer age = tuple.get(member.age);
             System.out.println("username = " + username);
             System.out.println("age = " + age);
+        }
+    }
+
+    /**
+     * 순수 JPA 에서 DTO를 조회할 때는 NEW 명령어를 사용해야함
+     * DTO 의 package 이름을 다 적어줘야 해서 지저분함
+     * 생성자 방식마 지원함
+     *
+     * @throws Exception
+     */
+    @Test
+    public void findDtoByJPQL() throws Exception {
+        // new operation을 활용하는 법 (생성자를 호출하는 것 처럼 생김)
+        List<MemberDto> result = em.createQuery("select new study.querydsl.dto.MemberDto(m.username, m.age) from Member m", MemberDto.class)
+                .getResultList();
+
+        for (MemberDto memberDto : result) {
+            System.out.println("memberDto = " + memberDto);
+        }
+    }
+
+    @Test
+    public void findDtoByQueryDslSetter() throws Exception {
+
+        List<MemberDto> result = queryFactory
+                .select(Projections.bean(MemberDto.class,
+                        member.username,
+                        member.age))
+                .from(member)
+                .fetch();
+
+        for (MemberDto memberDto : result) {
+            System.out.println("memberDto = " + memberDto);
+        }
+    }
+
+    @Test
+    public void findDtoByQueryDslField() throws Exception {
+
+        List<MemberDto> result = queryFactory
+                // setter 무시하고 바로 값이 MemberDto안에 있는 필드에 촥촥 꽂힌다
+                // 앗, private필드인데 어떻게 꽂히나요? java reflection
+                .select(Projections.fields(MemberDto.class,
+                        member.username,
+                        member.age))
+                .from(member)
+                .fetch();
+
+        for (MemberDto memberDto : result) {
+            System.out.println("memberDto = " + memberDto);
+        }
+    }
+
+    @Test
+    public void findUserDtoByQueryDslField() throws Exception {
+
+        QMember memberSub = new QMember("memberSub");
+
+        List<UserDto> result = queryFactory
+                .select(Projections.fields(UserDto.class,
+                        member.username.as("name"),
+                        /** 억지 쿼리긴 하지만  subQuery를 쓰기 위해
+                         * 프로퍼티나 필드 접근 생성 방식에서 이름이 다를 때 해결방안
+                         * ExpressionUtils.as(source, alias) 필드나 서브 쿼리에 별칭 적용
+                         * 이 방법은 지저분하게 보이기 때문에 .as로 할 수 있으면 그걸로 가라
+                         * 하지만 서브쿼리 같은 경우에는 방법이 없기에 ExpressionUtils 사용
+                         */
+                        ExpressionUtils.as(JPAExpressions
+                                .select(memberSub.age.max())
+                                .from(memberSub), "age")
+                ))
+                .from(member)
+                .fetch();
+
+        for (UserDto userDto : result) {
+            System.out.println("userDto = " + userDto);
+        }
+        /**
+         *         List<UserDto> result = queryFactory
+         *                 .select(Projections.fields(UserDto.class,
+         *                         member.username.as("name"),
+         *                         member.age))
+         *                 .from(member)
+         *                 .fetch();
+         *
+         *         for (UserDto userDto : result) {
+         *             System.out.println("userDto = " + userDto);
+         *         }
+         *
+         * .as("name")이 없을 경우
+         * 필드 이름이 동일한게 없어서 매치가 안되서 무시가 되버림
+         * userDto = UserDto(name=null, age=10)
+         * userDto = UserDto(name=null, age=20)
+         * userDto = UserDto(name=null, age=30)
+         * userDto = UserDto(name=null, age=40)
+         */
+    }
+
+    @Test
+    public void findDtoByQueryDslConstructor() throws Exception {
+
+        List<MemberDto> result = queryFactory
+                .select(Projections.constructor(MemberDto.class,
+                        // MemberDto안에 있는 타입이랑 일치해야한다
+                        member.username,
+                        member.age))
+                .from(member)
+                .fetch();
+
+        for (MemberDto memberDto : result) {
+            System.out.println("memberDto = " + memberDto);
+        }
+    }
+
+    @Test
+    public void findUserDtoByQueryDslConstructor() throws Exception {
+
+        List<UserDto> result = queryFactory
+                .select(Projections.constructor(UserDto.class,
+                        member.username,
+                        member.age))
+                .from(member)
+                .fetch();
+
+        for (UserDto userDto : result) {
+            System.out.println("userDto = " + userDto);
         }
     }
 }
