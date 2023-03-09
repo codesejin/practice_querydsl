@@ -561,7 +561,45 @@ public class QuerydslBasicTest {
         for (String s : result) {
             System.out.println("s = " + s);
         }
+    }
 
+    @Test
+    public void simpleProjection() throws Exception {
+
+        // select절 대상 지정
+        List<String> result = queryFactory
+                .select(member.username)
+                .from(member)
+                .fetch();
+
+        for (String s : result) {
+            System.out.println("s = " + s);
+        }
+    }
+    
+    @Test
+    public void tupleProjection() throws Exception {
+
+        /**
+         * 튜플의 패키지는 querydsl
+         * repository 계층에서 사용하는건 괜찮지만, service 계층, controller 계층까지 넘어가는건 좋은 설계가 아니다
+         * 하부 구현 기술인 jpa나 querydsl을 쓴다는걸 앞단인 비즈니스 로직에서 알면 좋지 않다
+         * JDBC같은거 쓸 때는 걔네가 반환해주는 ResultSet 이런거를 Repository 나 DAO 계층 안에서 쓰도록 하고
+         * 나머지 계층에서는 그런거에 대한 의존이 없게 설계하는게 좋은 설계이다
+         * 그래야 나중에 하부 기술을 querydsl에서 다른 기술로 바꾸더라도 앞단인 CONTROLLER 나 Service를 바꿀 필요가 없다
+         * 결론은 튜플을 바깥으로 던질때는 DTO로 바꿔서 반환해라
+         */
+
+        List<Tuple> result = queryFactory
+                .select(member.username, member.age)
+                .from(member)
+                .fetch();
+        for (Tuple tuple : result) {
+            String username = tuple.get(member.username);
+            Integer age = tuple.get(member.age);
+            System.out.println("username = " + username);
+            System.out.println("age = " + age);
+        }
     }
 }
 
