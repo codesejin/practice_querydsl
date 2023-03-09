@@ -3,6 +3,7 @@ package study.querydsl.entity;
 
 import com.querydsl.core.QueryResults;
 import com.querydsl.core.Tuple;
+import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,6 +18,7 @@ import javax.persistence.PersistenceUnits;
 import javax.transaction.Transactional;
 import java.util.List;
 
+import static com.querydsl.jpa.JPAExpressions.*;
 import static study.querydsl.entity.QMember.*;
 import static study.querydsl.entity.QTeam.team;
 
@@ -374,5 +376,112 @@ public class QuerydslBasicTest {
 
         boolean loaded = emf.getPersistenceUnitUtil().isLoaded(findMember.getTeam());
         Assertions.assertThat(loaded).as("페치 조인 적용").isTrue();
+    }
+
+    /**
+     * 나이가 가장 많은 회원 조회
+     * @throws Exception
+     */
+    @Test
+    public void subQuery() throws Exception {
+
+        QMember memberSub = new QMember("memberSub");
+
+        List<Member> result = queryFactory
+                .selectFrom(member)
+                .where(member.age.eq(
+                        select(memberSub.age.max())
+                                .from(memberSub)
+                ))
+                .fetch();
+
+        Assertions.assertThat(result).extracting("age")
+                .containsExactly(40);
+    }
+
+    /**
+     * 나이가 평균 이상인 회원 조회
+     * @throws Exception
+     */
+    @Test
+    public void subQueryGoe() throws Exception {
+
+        QMember memberSub = new QMember("memberSub");
+
+        List<Member> result = queryFactory
+                .selectFrom(member)
+                .where(member.age.goe(
+                        select(memberSub.age.avg())
+                                .from(memberSub)
+                ))
+                .fetch();
+
+        Assertions.assertThat(result).extracting("age")
+                .containsExactly(30, 40);
+    }
+
+
+    /**
+     * (효율적이지 않지만 예제 상 만듬)
+     * @throws Exception
+     */
+    @Test
+    public void subQueryIn() throws Exception {
+
+        QMember memberSub = new QMember("memberSub");
+
+        List<Member> result = queryFactory
+                .selectFrom(member)
+                .where(member.age.in(
+                        select(memberSub.age)
+                                .from(memberSub)
+                                .where(memberSub.age.gt(10))
+                ))
+                .fetch();
+
+        Assertions.assertThat(result).extracting("age")
+                .containsExactly(20, 30, 40);
+    }
+
+    /**
+     * select 절에서 SUBQUERY 사용 예
+     * @throws Exception
+     */
+    @Test
+    public void selectSubquery() throws Exception {
+
+        QMember memberSub = new QMember("memberSub");
+
+        List<Tuple> result = queryFactory
+                .select(member.username,
+//                        JPAExpressions
+//                                .select(memberSub.age.avg())
+//                                .from(memberSub))
+                        select(memberSub.age.avg()) // <- static import
+                                .from(memberSub))
+                .from(member)
+                .fetch();
+
+        for (Tuple tuple : result) {
+            System.out.println("tuple = " + tuple);
+        }
+
+        /** JPA는 From절에서 서브쿼리가 안된다. 당연히 querydsl 도 지원하지 않는다 (select절이나 Where절에서만 가능)
+         * 하이버네이트 구현체를 사용하면 Select절의 서브쿼리는 지원한다
+         * QUERYDSL도 하이버네이트 구현체를 사용하면 Select절의 서브쿼리를 지원한다
+         *
+         *  from절의 서브쿼리 해결방안
+         *  1, 서브쿼리를 JOIN으로 변경한다(가능한 상황도있고, 불가능한 상황도 있다
+         *  2. 애플리케이션에서 쿼리를 2번 분리해서 실행한다.
+         *  3. Native SQL을 사용한다
+         *
+         *  from절에서 서브쿼리를 쓰는 안좋은 이유?
+         *  화면에서 이쁘게 랜더링된 데이터 포맷을 만들기 위해 from절안에 from절이 들어가는 경우
+         *
+         *  한방 쿼리를 짜기위해 복잡하게 쿼리를 짜는것보다 2,3번 나눠서 쿼리를 날리는게 낫다
+         *  SQl을 집합적으로 생각해서 로직을 만들어야하는데, 시퀀스로 풀어서 만들 수 있는데..
+         *  정말 복잡한 쿼리 1000줄 짜리를 나눠서 100줄짜리로 ..
+         */
+
     }
 }
