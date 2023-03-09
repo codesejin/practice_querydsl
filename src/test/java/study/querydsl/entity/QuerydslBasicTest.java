@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import study.querydsl.dto.MemberDto;
+import study.querydsl.dto.QMemberDto;
 import study.querydsl.dto.UserDto;
 
 import javax.persistence.EntityManager;
@@ -729,6 +730,31 @@ public class QuerydslBasicTest {
 
         for (UserDto userDto : result) {
             System.out.println("userDto = " + userDto);
+        }
+    }
+
+    /**
+     * findUserDtoByQueryDslConstructor 랑 비슷한 방식이긴 한데,
+     * findDtoByQueryProjection를 사용하면 컴파일 에러를 잡을 수 있어서 안전하다
+     *
+     * 하지만 단점은
+     * MemberDto에 대한 Q파일을 생성하려면 DTO에 @QueryProjection을 추가해야한다
+     * 또한 아키텍처적인 의존관계 문제가 있는데, Dto에 querydsl 관련 라이브러리 의존성을 가지게 된다
+     * 그래서 querydsl라이브러리를 뺄때, Dto에 빨간불이 많이 들어올 것이다
+     *그리고 DTO는 repository, service, controller 로도 쓰고 API로 바로 반환하기도 한다
+     * 여러 레이어에 걸쳐서 돌아다니느데, 아키텍처 설계적으로 쓰기 애매하다
+     * @throws Exception
+     */
+    @Test
+    public void findDtoByQueryProjection() throws Exception {
+
+        List<MemberDto> result = queryFactory
+                .select(new QMemberDto(member.username, member.age))
+                .from(member)
+                .fetch();
+
+        for (MemberDto memberDto : result) {
+            System.out.println("memberDto = " + memberDto);
         }
     }
 }
