@@ -17,6 +17,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.annotation.Commit;
 import study.querydsl.dto.MemberDto;
 import study.querydsl.dto.QMemberDto;
 import study.querydsl.dto.UserDto;
@@ -834,6 +835,89 @@ public class QuerydslBasicTest {
         return usernameEq(usernameCond).and(ageEq(ageCond));
     }
 
+    /**
+     * 수정 , 삭제 배치 쿼리 (벌크 연산)
+     * 쿼리 한번으로 대량 데이터 수정
+     * jpa는 기본적으로 엔티티를 가져와서, 엔티티의 값만 바꾸면
+     * Transaction commit할때 flush가 에러가 나면서, 영어로는 dirty checking , 한글로는 변경감지가 일어나면서
+     * 이 엔티티가 바뀌었네 파악하고 업데이트 쿼리가 만들어지고 실행된다
+     * 그런데 이 변경감지는 개별 엔티티 건건이 일어나는거라 쿼리가 많이 나가게 된다
+     * 그런데 한번에 한방쿼리로 처리해야할 경우 성능이 더 낫다.
+     * 예를 들어 모든 개발자의 연봉을 50%인상해라고 하는 기능은 개별 건건이 날리는것 보다
+     * 쿼리 한번으로 트랜잭션 커밋하는게 낫다 이런걸 jpa에서 벌크연산이라고 한다
+     *
+     */
+
+    @Test
+    //@Commit // 트랜잭션이 커밋을 안하니까 안보여서 추가함.
+    /**
+     * 테스트에서 spring @transactional 이 되어있으면 트랜잭션을 시작하고 테스트를 시작하는데
+     * 끝나면 롤백을 해버린다. 그래야 다음에 다시 테스트를 해도 정상적으로 될 수 있으니까.
+     *
+     */
+    public void bulkUpdate() throws Exception {
+        /**
+         * 벌크 연산에서 조심해야할 것
+         * jpa는 기본적으로 영속성 컨텍스트라는 곳에 엔티티들이 다 올라가 있다.
+         * 이미 영속석 컨텍스트에 member1, member2, member3, member4 가 올라가 있다
+         *
+         * 모든 벌크연산은 영속성 컨텍스트(1차 캐시)를 무시하고 DB에 바로 쿼리를 날려버린다
+         * 그래서 영속성 컨텍스트와 DB의 상태가 달라진다
+         */
+
+        // member1 = 10 -> member1
+        // member2 = 20 -> member2
+        // member3 = 30 -> member3
+        // member4 = 40 -> member4
+
+        long count = queryFactory
+                .update(member)
+                .set(member.username, "비회원")
+                .where(member.age.lt(28))
+                .execute();
+
+        // member1 = 10 -> 비회원
+        // member2 = 20 -> 비회원
+        // member3 = 30 -> member3
+        // member4 = 40 -> member4
+        em.flush();
+        em.clear();
+
+        /**
+         * 이 상태에서 멤버를 조회해서 가져오면 원하는 결과가 안나온다
+         * jpa 기본적으로 Db에서 가져온 결과를 다시 영속성 컨텍스트 안에 넣어줘야 하는데
+         * 이미 같은 ID값이 있으면 db에서 가져온걸 버린다
+         * 영속성 컨텍스트가 항상 우선권을 가진다.
+         * 그래서 UPDATE된 db결과를 가져오려면 영속성 컨텍스트에 있는 걸 다 보내서 데이터를 맞추고,영속성 컨텍스트의 데이터를 다 초기화해버리는것이다
+         * 벌크연산이 나가면 이미  영속성 컨텍스트랑 Db랑 안맞기 때문에 초기화해버리는게 낫다.
+         * 하지만 비즈니스 로직상 큰 버그가 일어날 수 있기 때문에 잘 확인해라
+         */
+
+        List<Member> result = queryFactory
+                .selectFrom(member)
+                .fetch();
+
+        for (Member member1 : result) {
+            System.out.println("member1 = " + member1);
+        }
+    }
+    
+    @Test
+    public void bulkAdd() throws Exception {
+
+        queryFactory
+                .update(member)
+                .set(member.age, member.age.add(1)) // minus는 없기 때문에 .add(-1)해라, 곱하기는 MULTIPLY
+                .execute();
+    }
+    
+    @Test
+    public void bulkDelete() throws Exception {
+        long count = queryFactory
+                .delete(member)
+                .where(member.age.gt(18))
+                .execute();
+    }
 }
 
 
