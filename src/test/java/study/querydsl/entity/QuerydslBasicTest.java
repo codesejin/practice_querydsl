@@ -4,6 +4,7 @@ package study.querydsl.entity;
 import com.querydsl.core.QueryResults;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.dsl.CaseBuilder;
+import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import org.assertj.core.api.Assertions;
@@ -307,7 +308,7 @@ public class QuerydslBasicTest {
                 .select(member, team)
                 .from(member)
                 .leftJoin(member.team, team)
-                    .on(team.name.eq("teamA"))
+                .on(team.name.eq("teamA"))
                 //.where(team.name.eq("teamA")) 이너 조인일 경우 이렇게 where절 하나 ON절 하나 똑같음
                 .fetch();
 
@@ -328,6 +329,7 @@ public class QuerydslBasicTest {
     /**
      * 연관관계 없는 엔티티 외부조인
      * 회원의 이름이 팀 이름과 같은 대상 외부 조인
+     *
      * @throws Exception
      */
     @Test
@@ -381,6 +383,7 @@ public class QuerydslBasicTest {
 
     /**
      * 나이가 가장 많은 회원 조회
+     *
      * @throws Exception
      */
     @Test
@@ -402,6 +405,7 @@ public class QuerydslBasicTest {
 
     /**
      * 나이가 평균 이상인 회원 조회
+     *
      * @throws Exception
      */
     @Test
@@ -424,6 +428,7 @@ public class QuerydslBasicTest {
 
     /**
      * (효율적이지 않지만 예제 상 만듬)
+     *
      * @throws Exception
      */
     @Test
@@ -446,6 +451,7 @@ public class QuerydslBasicTest {
 
     /**
      * select 절에서 SUBQUERY 사용 예
+     *
      * @throws Exception
      */
     @Test
@@ -526,6 +532,36 @@ public class QuerydslBasicTest {
         for (String s : result) {
             System.out.println("s = " + s);
         }
+    }
+
+    @Test
+    public void constant() throws Exception {
+
+        List<Tuple> result = queryFactory
+                .select(member.username, Expressions.constant("A"))
+                .from(member)
+                .fetch();
+
+        for (Tuple tuple : result) {
+            System.out.println("tuple = " + tuple);
+        }
+    }
+
+    @Test
+    public void concat() throws Exception {
+
+        // {username}_{age}
+        List<String> result = queryFactory
+//                .select(member.username.concat("_").concat(member.age)) concat은 문자만 되고, 데이터타입이 서로 달라서 안됨
+                .select(member.username.concat("_").concat(member.age.stringValue())) // enum타입도 값이 ENUM이라 제대로 안나오는데 StringValue쓰면 된다
+                .from(member)
+                .where(member.username.eq("member1"))
+                .fetch();
+
+        for (String s : result) {
+            System.out.println("s = " + s);
+        }
+
     }
 }
 
