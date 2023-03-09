@@ -3,6 +3,7 @@ package study.querydsl.entity;
 
 import com.querydsl.core.QueryResults;
 import com.querydsl.core.Tuple;
+import com.querydsl.core.types.dsl.CaseBuilder;
 import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import org.assertj.core.api.Assertions;
@@ -484,4 +485,48 @@ public class QuerydslBasicTest {
          */
 
     }
+
+    @Test
+    public void basicCase() throws Exception {
+
+        List<String> result = queryFactory
+                .select(member.age
+                        .when(10).then("얄실")
+                        .when(20).then("스무살")
+                        .otherwise("기타"))
+                .from(member)
+                .fetch();
+
+        for (String s : result) {
+            System.out.println("s =" + s);
+        }
+    }
+
+    /**
+     * 이걸 정말 사용해야하는지 고민해야함
+     * 살다보면 꼭 필요할때도 있을텐데,가급적이면 DB에서 이런ㅂ문제를 해결 안한다
+     * DB는 Raw데이터를 최소한으로 필터링,그룹핑,계산하는데
+     * 열살인지 스무살인지 전환하고 바꿔서 보여주는건 DB에서 하면 안된다
+     * 애플리케이션 로직이나 화면 프레젠테이션 레이어에서 해결해야한다
+     *
+     * @throws Exception
+     */
+
+    @Test
+    public void complexCase() throws Exception {
+
+        List<String> result = queryFactory
+                .select(new CaseBuilder()
+                        .when(member.age.between(0, 20)).then("0~20살")
+                        .when(member.age.between(21, 31)).then("21~30살")
+                        .otherwise("기타"))
+                .from(member)
+                .fetch();
+
+        for (String s : result) {
+            System.out.println("s = " + s);
+        }
+    }
 }
+
+
